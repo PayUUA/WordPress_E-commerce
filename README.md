@@ -1,3 +1,6 @@
+(For PayU Ukraine and Russian ONLY)
+-------
+
 Модуль PayU для Wordpress E-commerce
 =======
 
