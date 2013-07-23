@@ -27,6 +27,9 @@ function gateway_payu($separator, $sessionid)
 	$cart_sql = "SELECT * FROM `".WPSC_TABLE_CART_CONTENTS."` WHERE `purchaseid`='".$purchase_log[0]['id']."'";
 	$cart = $wpdb->get_results($cart_sql,ARRAY_A) ;
 
+
+
+
 	// Recive payu settings
 	$payu_url = get_option('payu_lu_url');
 
@@ -44,6 +47,38 @@ function gateway_payu($separator, $sessionid)
 
     $que = "SELECT `id`,`type`, `unique_name` FROM `".WPSC_TABLE_CHECKOUT_FORMS."` WHERE `id` IN ( ". $keys ." ) AND `active` = '1'";
     $dat_name = $wpdb->get_results( $que, ARRAY_A );
+
+
+    foreach ( $cart as $item )
+	{
+		$d['ORDER_PNAME'][] = $item['name']; # Array with data of goods
+		$d['ORDER_QTY'][] = $item['quantity']; # Array with data of counts of each goods 
+		$d['ORDER_PRICE'][] = $item['price']; # Array with prices of goods
+		$d['ORDER_VAT'][] = $data['VAT'];# Array with VAT of each goods  => from settings
+		$d['ORDER_SHIPPING'][] = 0;# Shipping cost
+		$d['ORDER_PCODE'][] = "testgoods_".$item['id']; # Array with codes of goods
+		$d['ORDER_PINFO'][] = ""; # Array with additional data of goods
+	}
+	
+	$orderID = $_SERVER["HTTP_HOST"].'_' . $sessionid . '_' . md5( "payu_".time() );
+
+	$forSend = array (
+					'ORDER_REF' => $orderID, # Uniqe order 
+					'ORDER_DATE' => date("Y-m-d H:i:s"), # Date of paying ( Y-m-d H:i:s ) 
+					'ORDER_PNAME' => $d['ORDER_PNAME'], #array( "Test_goods" ), # Array with data of goods
+					'ORDER_PCODE' => $d['ORDER_PCODE'], #array( "testgoods1" ), # Array with codes of goods
+					'ORDER_PINFO' => $d['ORDER_PINFO'], #array( "" ), # Array with additional data of goods
+					'ORDER_PRICE' => $d['ORDER_PRICE'], #array( $data['product_price'] ), # Array with prices of goods
+					'ORDER_QTY' => $d['ORDER_QTY'], #array( 1 ), # Array with data of counts of each goods 
+					'ORDER_VAT' => $d['ORDER_VAT'], #array( 0 ), # Array with VAT of each goods
+					'ORDER_SHIPPING' => $d['ORDER_SHIPPING'], #array( 0.1 ), # Shipping cost
+					'PRICES_CURRENCY' => $data['price_currency'],  #"UAH"  # Currency
+					'LANGUAGE' => $data['language']
+				  );
+	if ( $data['backref'] != false ) $forSend['BACK_REF'] = $data['backref'];
+
+
+
 
     foreach ( $dat_name  as $v )
     {
@@ -77,69 +112,42 @@ function gateway_payu($separator, $sessionid)
 			$val = $_POST[ 'collected_data' ][ $val ];
 
 			$val = trim( $val );
-			$Billings[ $k ] = str_replace( "\n", ', ', $val );
+			$forSend[ $k ] = str_replace( "\n", ', ', $val );
 		}
 	}
 
-  	if( ( $_POST['collected_data'][get_option('email_form_field')] != null) && ($Billings['BILL_EMAIL'] == null) )
+  	if( ( $_POST['collected_data'][get_option('email_form_field')] != null) && ($forSend['BILL_EMAIL'] == null) )
     {
-    	$Billings['BILL_EMAIL'] = $_POST['collected_data'][get_option('email_form_field')];
+    	$forSend['BILL_EMAIL'] = $_POST['collected_data'][get_option('email_form_field')];
     }
 
-	foreach ( $cart as $item )
-	{
-		$d['ORDER_PNAME'][] = $item['name']; # Array with data of goods
-		$d['ORDER_QTY'][] = $item['quantity']; # Array with data of counts of each goods 
-		$d['ORDER_PRICE'][] = $item['price']; # Array with prices of goods
-		$d['ORDER_VAT'][] = $data['VAT'];# Array with VAT of each goods  => from settings
-		$d['ORDER_SHIPPING'][] = 0;# Shipping cost
-		$d['ORDER_PCODE'][] = "testgoods_".$item['id']; # Array with codes of goods
-		$d['ORDER_PINFO'][] = ""; # Array with additional data of goods
-	}
+	
 
 
 	$PayU = new PayU( $data['merchant'], $data['secret_key'] );
-	$orderID = $_SERVER["HTTP_HOST"].'_' . $sessionid . '_' . md5( "payu_".time() );
 
-	$forSend = array (
-					'ORDER_REF' => $orderID, # Uniqe order 
-					'ORDER_DATE' => date("Y-m-d H:i:s"), # Date of paying ( Y-m-d H:i:s ) 
-					'ORDER_PNAME' => $d['ORDER_PNAME'], #array( "Test_goods" ), # Array with data of goods
-					'ORDER_PCODE' => $d['ORDER_PCODE'], #array( "testgoods1" ), # Array with codes of goods
-					'ORDER_PINFO' => $d['ORDER_PINFO'], #array( "" ), # Array with additional data of goods
-					'ORDER_PRICE' => $d['ORDER_PRICE'], #array( $data['product_price'] ), # Array with prices of goods
-					'ORDER_QTY' => $d['ORDER_QTY'], #array( 1 ), # Array with data of counts of each goods 
-					'ORDER_VAT' => $d['ORDER_VAT'], #array( 0 ), # Array with VAT of each goods
-					'ORDER_SHIPPING' => $d['ORDER_SHIPPING'], #array( 0.1 ), # Shipping cost
-					'PRICES_CURRENCY' => $data['price_currency']  #"UAH"  # Currency
-				  );
-
-	$PayU->update( $forSend )->debug( $data['debug'] );
-	
-	if ( $payu_url != "" ) $PayU->url = $payu_url;
-
-	$PayU->data['LANGUAGE']  = $data['language'];
-	$PayU->data = array_merge( $PayU->data, $Billings );
-
-
-	if ( $data['backref'] != false ) $PayU->data['BACK_REF'] = $data['backref'];
-	
-	$form = $PayU->getForm( false );
-
-	echo $form;
 	$img = WPSC_URL . '/images/payuloader.gif';
 
-	?>
-	<img style="position:absolute; top:50%; left:47%; margin-top:-125px; margin-left:-60px;" src="<?= $img ?>" >
+	$button = "<img style='position:absolute; top:50%; left:47%; margin-top:-125px; margin-left:-60px;' src='$img' >
 	<script>
 		function submitPayUForm()
 		{
 			document.getElementById('payuForm').submit();
 		}
 		setTimeout( submitPayUForm, 2000 );
-	</script>
+	</script>";
 
-<? 
+
+
+	$option  = array( 'merchant' => $data['merchant'] , 'secretkey' => $data['secret_key'], 'debug' => $data['debug'], 'button' => $button );
+	if ( $payu_url != "" ) $option['luUrl'] = $payu_url;
+	
+
+	$pay = PayU::getInst()->setOptions( $option )->setData( $forSend )->LU();
+	echo $pay;
+
+
+
 #----------------------------------------------------------------
 
 	$data = array(
@@ -164,14 +172,10 @@ function nzshpcrt_payu_callback()
 	global $wpdb;
 	if( !isset($_GET['payu_callback']) || ($_GET['payu_callback'] != 'true') ) return;
 
-	$PayU = new PayU( get_option('payu_merchant'), get_option('payu_secret_key') );
-
-	$check = $PayU->getPostData()->checkHashSignature();
-
-	if ( !$check )  die( "Incorrect signature" );
+	$option  = array( 'merchant' => get_option('payu_merchant') , 'secretkey' => get_option('payu_secret_key') );
 	
-
-	$answer = $PayU->createAnswer();
+	$payansewer = PayU::getInst()->setOptions( $option )->IPN();
+	echo $payansewer;
 
 	$ref = $_POST['REFNOEXT'];
 
