@@ -37,7 +37,7 @@ function gateway_payu($separator, $sessionid)
 	$data['secret_key'] = get_option('payu_secret_key');
 	$data['price_currency'] = get_option('payu_price_currency');
 	$data['language'] =  get_option('payu_language');
-	$data['VAT'] =  get_option('payu_VAT');
+	$data['VAT'] =  (int)get_option('payu_VAT');
 	$data['debug'] =  get_option('payu_debug_mode');
 	$data['backref'] = ( get_option('payu_back_ref') != "" ) ? get_option('payu_back_ref') :  false;
 
@@ -111,7 +111,7 @@ function gateway_payu($separator, $sessionid)
 		{ 
 			$val = $_POST[ 'collected_data' ][ $val ];
 
-			$val = trim( $val );
+			//$val = trim( $val );
 			$forSend[ $k ] = str_replace( "\n", ', ', $val );
 		}
 	}
@@ -121,10 +121,6 @@ function gateway_payu($separator, $sessionid)
     	$forSend['BILL_EMAIL'] = $_POST['collected_data'][get_option('email_form_field')];
     }
 
-	
-
-
-	$PayU = new PayU( $data['merchant'], $data['secret_key'] );
 
 	$img = WPSC_URL . '/images/payuloader.gif';
 
